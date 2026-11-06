@@ -1,0 +1,55 @@
+store_nbr,ville,province,type_magasin,cluster,ventes,transactions
+1,Quito,Pichincha,D,13,14145013.0,2553963
+2,Quito,Pichincha,D,13,21557389.0,3219901
+3,Quito,Pichincha,D,8,50481910.0,5366350
+4,Quito,Pichincha,D,9,18909700.0,2519007
+5,Santo Domingo,Santo Domingo de los Tsachilas,D,4,15592405.0,2347877
+6,Quito,Pichincha,D,13,25183680.0,3065896
+7,Quito,Pichincha,D,8,26952050.0,2995993
+8,Quito,Pichincha,D,8,30494287.0,4637971
+9,Quito,Pichincha,B,6,26409441.0,3516162
+10,Quito,Pichincha,C,15,9613906.0,1652493
+11,Cayambe,Pichincha,B,6,28325558.0,3972488
+12,Latacunga,Cotopaxi,C,15,10659218.0,1958852
+13,Latacunga,Cotopaxi,C,15,10523046.0,1572504
+14,Riobamba,Chimborazo,C,7,11387919.0,2287850
+15,Ibarra,Imbabura,C,15,11451270.0,2209898
+16,Santo Domingo,Santo Domingo de los Tsachilas,C,3,10986413.0,1464498
+17,Quito,Pichincha,C,12,18030969.0,2295485
+18,Quito,Pichincha,B,16,13259376.0,2071278
+19,Guaranda,Bolivar,C,15,13049510.0,2107489
+20,Quito,Pichincha,B,6,12920955.0,1422539
+21,Santo Domingo,Santo Domingo de los Tsachilas,B,6,9255506.0,842891
+22,Puyo,Pastaza,C,7,4090202.0,504156
+23,Ambato,Tungurahua,D,9,11651381.0,1788171
+24,Guayaquil,Guayas,D,1,23767733.0,3568206
+25,Salinas,Santa Elena,D,1,11420998.0,1520362
+26,Guayaquil,Guayas,D,10,7755122.0,1065059
+27,Daule,Guayas,D,1,19188021.0,2485687
+28,Guayaquil,Guayas,E,10,18383155.0,1957594
+29,Guayaquil,Guayas,E,10,9725158.0,981448
+30,Guayaquil,Guayas,C,3,7382074.0,1171130
+31,Babahoyo,Los Rios,B,10,17746873.0,2306044
+32,Guayaquil,Guayas,C,3,5951796.0,1065226
+33,Quevedo,Los Rios,C,3,14178501.0,1743003
+34,Guayaquil,Guayas,B,6,17090734.0,3864018
+35,Playas,Guayas,C,3,7676679.0,1123889
+36,Libertad,Guayas,E,10,15322431.0,1738129
+37,Cuenca,Azuay,D,2,19970636.0,2481719
+38,Loja,Loja,D,4,18859999.0,2867052
+39,Cuenca,Azuay,B,6,20252193.0,2389482
+40,Machala,El Oro,C,3,18395757.0,2181195
+41,Machala,El Oro,D,4,14991039.0,1764146
+42,Cuenca,Azuay,D,2,8945768.0,802646
+43,Esmeraldas,Esmeraldas,E,10,16391692.0,2182356
+44,Quito,Pichincha,A,5,62087553.0,7273093
+45,Quito,Pichincha,A,11,54498010.0,6201115
+46,Quito,Pichincha,A,14,41896062.0,5990113
+47,Quito,Pichincha,A,14,50948310.0,6535810
+48,Quito,Pichincha,A,14,35933130.0,5107785
+49,Quito,Pichincha,A,11,43420096.0,4574103
+50,Ambato,Tungurahua,A,14,28653021.0,4384444
+51,Guayaquil,Guayas,A,17,32911490.0,2873614
+52,Manta,Manabi,A,11,2696170.0,275393
+53,Manta,Manabi,D,13,11216167.0,1180082
+54,El Carmen,Manabi,C,3,11057483.0,1451290

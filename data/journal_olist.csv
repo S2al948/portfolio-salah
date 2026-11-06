@@ -1,0 +1,9 @@
+Opération,Lignes concernées,Justification
+Commandes dans le fichier brut,99441,Point de départ.
+Commandes non livrées retirées,2963,"Annulées, indisponibles ou en cours : pas de délai de livraison ni d'avis à analyser."
+Commandes livrées sans date de livraison retirées,8,Impossible de calculer le retard.
+Commandes avec plusieurs avis (dernier avis conservé),547,"Une commande doit avoir une seule note, sinon elle serait comptée plusieurs fois."
+Articles sans catégorie (classés « non renseignée »),1603,"On garde ces articles dans le chiffre d'affaires, avec une catégorie explicite."
+Commandes sans avis (gardées),646,"Gardées pour le chiffre d'affaires, ignorées dans les calculs de note."
+Commandes hors période janvier 2017 - août 2018 retirées,267,Mois quasi vides : ils fausseraient les évolutions mensuelles.
+Commandes conservées pour l'analyse,96203,Table finale : une ligne par commande livrée.

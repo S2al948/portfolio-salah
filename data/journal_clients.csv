@@ -1,0 +1,10 @@
+Opération,Lignes concernées,Justification
+Clients dans le fichier brut,2240,Point de départ (séparateur « ; »).
+"Clients en double supprimés (même profil, ID différent)",182,Les mêmes valeurs sur toutes les colonnes : très probablement des lignes dupliquées.
+Clients sans revenu retirés,24,Le revenu est une variable clé : on ne l'invente pas.
+Revenus aberrants retirés (plus de 200 000),1,Valeurs isolées très au-dessus des autres (max 666 666) : elles tireraient les moyennes.
+Années de naissance impossibles retirées (avant 1920),3,Clients de plus de 100 ans : erreurs de saisie.
+"Situations familiales regroupées (Alone, Absurd, YOLO)",7,« Alone » devient « Single » ; « Absurd » et « YOLO » deviennent « Non précisé ».
+Colonnes créées,6,"Âge, dépense totale, nombre d'achats, nombre d'enfants, campagnes acceptées, ancienneté."
+"Colonnes constantes supprimées (Z_CostContact, Z_Revenue)",2,Même valeur pour tous les clients : aucune information.
+Clients conservés pour l'analyse,2030,Table finale.

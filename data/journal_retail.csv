@@ -1,0 +1,8 @@
+Opération,Lignes concernées,Justification
+Lignes de transaction dans le fichier brut,541909,Point de départ (1 ligne = 1 produit sur une facture).
+Lignes en double supprimées,5268,Lignes strictement identiques : ventes comptées deux fois.
+Lignes d'annulation (factures « C ») séparées,9251,"Gardées à part pour mesurer les retours, retirées des ventes."
+"Lignes hors produits retirées (port, frais, ajustements)",2406,"Codes comme POST, D, M, BANK CHARGES : ce ne sont pas des produits vendus."
+Lignes avec quantité ou prix nul ou négatif retirées,2480,Corrections de stock ou cadeaux : pas de vraie vente.
+Lignes sans identifiant client (gardées pour le chiffre d'affaires global),131354,"Utilisées pour le CA mensuel, mais exclues de la segmentation RFM qui exige un client identifié."
+Factures de clients identifiés conservées,18402,Table finale utilisée pour la segmentation RFM.

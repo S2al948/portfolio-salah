@@ -1,0 +1,34 @@
+date,campagne,canal,impressions,clics,cout_eur,conversions,chiffre_affaires_eur
+2026-01-05,Soldes Hiver,Google Ads,48200,1930,1450.00,96,5760.00
+2026-01-05,Soldes Hiver,Facebook Ads,61500,1230,980.00,51,3060.00
+2026-01-05,Soldes Hiver,Instagram,39800,1190,870.00,47,2820.00
+2026-01-05,Soldes Hiver,Email,12000,1560,120.00,138,8280.00
+2026-01-19,Newsletter Janvier,Email,12400,1490,115.00,121,7260.00
+2026-01-19,Newsletter Janvier,LinkedIn Ads,15800,316,640.00,12,1440.00
+2026-02-02,Saint-Valentin,Google Ads,52100,2290,1620.00,141,8460.00
+2026-02-02,Saint-Valentin,Facebook Ads,66400,1460,1050.00,74,4440.00
+2026-02-02,Saint-Valentin,Instagram,58700,1760,1210.00,93,5580.00
+2026-02-02,Saint-Valentin,TikTok Ads,90300,2710,1300.00,88,5280.00
+2026-02-16,Retargeting Fevrier,Google Ads,21400,1070,520.00,84,5040.00
+2026-02-16,Retargeting Fevrier,Facebook Ads,24800,992,430.00,63,3780.00
+2026-03-02,Printemps,Google Ads,50300,2010,1500.00,102,6120.00
+2026-03-02,Printemps,Facebook Ads,63100,1260,1000.00,55,3300.00
+2026-03-02,Printemps,Instagram,45200,1360,950.00,61,3660.00
+2026-03-02,Printemps,TikTok Ads,84600,2540,1250.00,79,4740.00
+2026-03-16,Newsletter Mars,Email,12900,1550,118.00,129,7740.00
+2026-03-16,Newsletter Mars,LinkedIn Ads,16300,359,660.00,15,1800.00
+2026-04-06,Paques,Google Ads,47800,1910,1430.00,95,5700.00
+2026-04-06,Paques,Facebook Ads,59900,1198,960.00,52,3120.00
+2026-04-06,Paques,Instagram,41700,1250,890.00,56,3360.00
+2026-04-20,Retargeting Avril,Google Ads,22900,1145,540.00,91,5460.00
+2026-04-20,Retargeting Avril,Facebook Ads,26100,1044,450.00,69,4140.00
+2026-05-04,Fete des Meres,Google Ads,55600,2450,1700.00,152,9120.00
+2026-05-04,Fete des Meres,Facebook Ads,70200,1640,1120.00,86,5160.00
+2026-05-04,Fete des Meres,Instagram,62400,1990,1340.00,108,6480.00
+2026-05-04,Fete des Meres,Email,13600,1770,130.00,163,9780.00
+2026-05-18,Newsletter Mai,Email,13800,1660,125.00,142,8520.00
+2026-05-18,Newsletter Mai,TikTok Ads,92700,2780,1350.00,91,5460.00
+2026-06-01,Soldes Ete,Google Ads,58900,2590,1780.00,160,9600.00
+2026-06-01,Soldes Ete,Facebook Ads,72800,1820,1180.00,92,5520.00
+2026-06-01,Soldes Ete,Instagram,64100,2050,1390.00,112,6720.00
+2026-06-01,Soldes Ete,TikTok Ads,98200,3050,1480.00,101,6060.00

@@ -1,0 +1,7 @@
+Opération,Lignes concernées,Justification
+"Lignes dans train.csv (1 ligne = 1 magasin, 1 famille, 1 jour)",3000888,Point de départ.
+"Lignes à zéro vente (informatif, gardées)",939130,Beaucoup de familles n'existent pas encore dans certains magasins : ce sont de vrais zéros.
+Jours absents de la série (25 décembre de chaque année),4,Magasins fermés : ces jours sont exclus plutôt que remplis avec des valeurs inventées.
+"Prix du pétrole manquants (week-ends, jours fériés US)",525,On reconduit le dernier prix connu ; le premier jour est comblé par le suivant.
+Jours fériés nationaux repérés,78,Jours fériés nationaux effectivement célébrés (fêtes transférées prises à leur nouvelle date).
+Jours conservés dans la série quotidienne,1684,Du 1er janvier 2013 au 15 août 2017.

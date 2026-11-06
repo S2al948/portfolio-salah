@@ -1,0 +1,6 @@
+Opération,Lignes concernées,Justification
+Leads qualifiés (MQL) dans le fichier brut,8000,Une ligne par lead.
+Affaires conclues dans le fichier brut,842,Chaque affaire est rattachée à un lead par mql_id.
+Cycle de vente négatif mis à vide,1,Affaire gagnée avant le premier contact : incohérent.
+Origine manquante renommée « non renseigné »,60,On garde les leads avec une origine explicite.
+Leads conservés,8000,"Table finale : une ligne par lead, avec l'issue (gagné ou non)."
