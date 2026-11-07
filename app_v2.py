@@ -1976,7 +1976,7 @@ ETAPES = [
 def page_projets():
     numero = st.session_state.get("projet")
     pages_projets = {1: projet_olist, 2: projet_retail, 3: projet_clients, 4: projet_favorita, 5: projet_leads,
-                     6: projet_powerbi_churn, 7: projet_powerbi_banque, 8: projet_geomarketing}
+                     6: projet_powerbi_churn, 7: projet_powerbi_banque, 8: projet_geomarketing, 9: projet_sql_ga4}
     if numero in pages_projets:
         pages_projets[numero]()
         pied_projet(numero)
@@ -1984,8 +1984,8 @@ def page_projets():
 
     titre_page(
         "Projets",
-        "Huit analyses sur des données réelles, de la question au plan d'action",
-        "Six projets en Python et deux dashboards Power BI. Je les ai réalisés comme des missions : une question business, "
+        "Neuf analyses sur des données réelles, de la question au plan d'action",
+        "Six projets en Python, un en SQL et deux dashboards Power BI. Je les ai réalisés comme des missions : une question business, "
         "des données à nettoyer ou à modéliser, une analyse, puis des recommandations avec leurs limites.",
     )
     etapes = "".join(f"<li>{nom}<small>{texte}</small></li>" for nom, texte in ETAPES)
@@ -4536,6 +4536,229 @@ def geo_comptes_arrondissement(type_commerce):
     """Nombre de commerces de ce type par arrondissement (préparé à partir de la BDCOM)."""
     comptes = pd.read_csv(DATA / "geo_arrondissements.csv").set_index("arrondissement")
     return comptes[type_commerce]
+
+
+# =========================================================
+# PROJET 9 : PARCOURS D'ACHAT E-COMMERCE EN SQL (GOOGLE ANALYTICS 4)
+# =========================================================
+# Les 5 requêtes (data/ga4_requetes.sql) ont été exécutées dans BigQuery sur l'export GA4 public
+# de la Google Merchandise Store ; leurs résultats sont dans data/ga4_*.csv.
+PROJETS.append({
+    "titre": "Parcours d'achat e-commerce en SQL (GA4)",
+    "question": "Où une boutique en ligne perd-elle ses visiteurs, quels canaux amènent de vrais acheteurs, et qui revient ?",
+    "donnees": "Export Google Analytics 4 de la Google Merchandise Store (BigQuery, nov. 2020 à janv. 2021)",
+    "outils": ["SQL", "BigQuery", "Google Analytics 4", "Python"],
+})
+
+ETAPES_ENTONNOIR = [("visiteurs", "Visite le site"), ("vue_produit", "Regarde un produit"), ("ajout_panier", "Ajoute au panier"),
+                    ("debut_paiement", "Commence le paiement"), ("infos_paiement", "Saisit ses infos de paiement"), ("achat", "Achète")]
+NOMS_CANAUX = {
+    ("organic", "google"): "Google, référencement naturel",
+    ("(none)", "(direct)"): "Accès direct",
+    ("referral", "shop.googlemerchandisestore.com"): "Lien depuis la boutique Google principale",
+    ("referral", "<Other>"): "Liens depuis d'autres sites",
+    ("cpc", "google"): "Google Ads (publicité payante)",
+    ("organic", "<Other>"): "Autres moteurs de recherche",
+}
+
+
+@st.cache_data
+def donnees_ga4():
+    lire = lambda n: pd.read_csv(DATA / f"ga4_{n}.csv")
+    jour = lire("1_quotidien")
+    jour["jour"] = pd.to_datetime(jour["jour"])
+    return {"jour": jour, "entonnoir": lire("2_entonnoir"), "canaux": lire("3_canaux"), "cohortes": lire("4_cohortes"), "produits": lire("5_produits")}
+
+
+@st.cache_data
+def requetes_ga4():
+    """Les 5 requêtes SQL du fichier data/ga4_requetes.sql, découpées par numéro."""
+    texte = (DATA / "ga4_requetes.sql").read_text(encoding="utf-8")
+    blocs = re.split(r"\n-- -{20,}\n-- (\d)\. ", texte)
+    return {int(blocs[i]): "-- " + blocs[i] + ". " + blocs[i + 1].strip() for i in range(1, len(blocs) - 1, 2)}
+
+
+def voir_sql(numero):
+    with st.expander("Voir la requête SQL de cette analyse"):
+        st.code(requetes_ga4()[numero], language="sql")
+
+
+def ga4_chiffres(d):
+    j = d["jour"]
+    return {"visiteurs": j["visiteurs"].sum(), "sessions": j["sessions"].sum(), "achats": j["achats"].sum(), "ca": j["chiffre_affaires_usd"].sum()}
+
+
+@st.cache_data
+def resume_ga4():
+    d = donnees_ga4()
+    e = d["entonnoir"].set_index("appareil").sum()
+    vue, panier, achat = e["vue_produit"] / e["visiteurs"] * 100, e["ajout_panier"] / e["visiteurs"] * 100, e["achat"] / e["visiteurs"] * 100
+    return {
+        "court": f"Seuls {fr(vue, 0)} % des visiteurs regardent un produit et {fr(achat, 2)} % achètent : tout se joue avant le panier.",
+        "trouve": f"Sur 100 visiteurs, {fr(vue, 0)} regardent un produit, {fr(panier)} ajoutent au panier et {fr(achat, 2)} achètent. "
+                  f"Une fois le panier rempli, {fr(achat / panier * 100, 0)} % vont jusqu'à l'achat. Le mobile convertit aussi bien que l'ordinateur, "
+                  "Google Ads moins bien que le référencement naturel, et les ventes s'effondrent dès la semaine de Noël.",
+        "reco": "Mettre les produits en avant dès l'accueil, relancer les paniers abandonnés par e-mail, revoir les pages d'arrivée de Google Ads, "
+                "et annoncer la date limite de livraison avant Noël pour avancer les achats.",
+    }
+
+
+_resumes_v2 = calculer_resumes
+
+
+@st.cache_data
+def calculer_resumes():
+    resumes = dict(_resumes_v2())
+    resumes[9] = resume_ga4()
+    return resumes
+
+
+def projet_sql_ga4():
+    d = donnees_ga4()
+    c = ga4_chiffres(d)
+    projet = PROJETS[8]
+    entete_projet(9, projet["titre"], projet["question"], projet["donnees"], projet["outils"], [
+        ("Visiteurs", nombre(c["visiteurs"])),
+        ("Sessions", nombre(c["sessions"])),
+        ("Achats", nombre(c["achats"])),
+        ("Chiffre d'affaires", f"{nombre(c['ca'])} $"),
+    ])
+    callout(
+        "**Comment j'ai travaillé.** J'ai écrit 5 requêtes SQL et je les ai exécutées dans **BigQuery** sur l'export brut de Google Analytics 4 : "
+        "une ligne par événement (page vue, ajout au panier, achat…). Le site affiche leurs résultats ; chaque graphique est suivi de sa requête."
+    )
+    onglets = st.tabs(["Trafic et ventes", "Entonnoir d'achat", "Canaux d'acquisition", "Fidélité", "Produits", "Limites"])
+
+    with onglets[0]:
+        j = d["jour"].copy()
+        j["semaine"] = j["jour"].dt.to_period("W-SUN").dt.start_time
+        sem = j.groupby("semaine")[["visiteurs", "achats", "chiffre_affaires_usd"]].sum().reset_index()
+        sem = sem[sem["visiteurs"] > 5000]  # la première semaine ne compte qu'un jour (1er novembre)
+        k = st.columns(3)
+        k[0].metric("Taux de conversion des sessions", f"{fr(c['achats'] / c['sessions'] * 100, 2)} %")
+        k[1].metric("Panier moyen", f"{fr(c['ca'] / c['achats'], 0)} $")
+        k[2].metric("Sessions par visiteur", fr(c["sessions"] / c["visiteurs"], 2))
+        pic = sem.loc[sem["chiffre_affaires_usd"].idxmax()]
+        noel = sem[sem["semaine"] == pd.Timestamp("2020-12-21")].iloc[0]
+        couleurs = [C_ACCENT if s in (pic["semaine"], noel["semaine"]) else C_MAIN for s in sem["semaine"]]
+        fig = go.Figure(go.Bar(x=sem["semaine"].dt.strftime("%d/%m"), y=sem["chiffre_affaires_usd"], marker_color=couleurs,
+                               hovertemplate="Semaine du %{x}<br>%{y:,.0f} $<extra></extra>"))
+        fig.update_yaxes(title="Chiffre d'affaires ($)")
+        fig.update_xaxes(type="category", title="Semaine commençant le")
+        style_fig(fig, "Chiffre d'affaires par semaine", hauteur=360)
+        afficher_fig(fig)
+        lecture(
+            f"Les ventes montent avec le Black Friday et culminent la semaine du {pic['semaine']:%d/%m} ({nombre(pic['chiffre_affaires_usd'])} $). "
+            f"La semaine de Noël, elles chutent de {fr((1 - noel['chiffre_affaires_usd'] / pic['chiffre_affaires_usd']) * 100, 0)} % alors que le trafic baisse beaucoup moins : "
+            "passé la date limite de livraison, les visiteurs regardent mais n'achètent plus."
+        )
+        voir_sql(1)
+
+    with onglets[1]:
+        e = d["entonnoir"].set_index("appareil")
+        tot = e.sum()
+        pct = tot / tot["visiteurs"] * 100
+        etiquettes = [lib for _, lib in ETAPES_ENTONNOIR]
+        valeurs = [pct[col] for col, _ in ETAPES_ENTONNOIR]
+        fig = go.Figure(go.Bar(x=valeurs, y=etiquettes, orientation="h", marker_color=C_MAIN,
+                               text=[f"{fr(v, 2 if v < 3 else 1)} %" for v in valeurs], textposition="outside",
+                               hovertemplate="%{y} : %{x:.2f} % des visiteurs<extra></extra>"))
+        fig.update_yaxes(autorange="reversed")
+        fig.update_xaxes(title="Part des visiteurs (%)", range=[0, 112])
+        style_fig(fig, "Sur 100 visiteurs, combien atteignent chaque étape ?", hauteur=360)
+        afficher_fig(fig)
+        lecture(
+            f"La plus grosse perte a lieu avant le panier : {fr(100 - pct['vue_produit'], 0)} % des visiteurs ne regardent aucun produit, "
+            f"et {fr(100 - tot['ajout_panier'] / tot['vue_produit'] * 100, 0)} % de ceux qui en regardent un ne l'ajoutent pas. "
+            f"Ensuite, le tunnel de paiement fonctionne bien : {fr(tot['achat'] / tot['ajout_panier'] * 100, 0)} % des visiteurs qui remplissent un panier achètent."
+        )
+        st.write("**Par appareil**")
+        par_app = pd.DataFrame({
+            "Appareil": e.index.map({"desktop": "Ordinateur", "mobile": "Mobile", "tablet": "Tablette"}),
+            "Visiteurs": e["visiteurs"].values,
+            "Regardent un produit (%)": (e["vue_produit"] / e["visiteurs"] * 100).round(1).values,
+            "Ajoutent au panier (%)": (e["ajout_panier"] / e["visiteurs"] * 100).round(1).values,
+            "Achètent (%)": (e["achat"] / e["visiteurs"] * 100).round(2).values,
+        })
+        st.dataframe(par_app, hide_index=True, width="stretch")
+        st.caption("Le mobile convertit aussi bien que l'ordinateur : l'ergonomie mobile n'est pas la priorité ici.")
+        voir_sql(2)
+
+    with onglets[2]:
+        cn = d["canaux"].copy()
+        cn["canal"] = [NOMS_CANAUX.get((a, b)) for a, b in zip(cn["support"], cn["source"])]
+        cn = cn.dropna(subset=["canal"]).sort_values("taux_conversion_pct")
+        moyenne = d["entonnoir"]["achat"].sum() / d["entonnoir"]["visiteurs"].sum() * 100
+        fig = go.Figure(go.Bar(x=cn["taux_conversion_pct"], y=cn["canal"], orientation="h", marker_color=C_MAIN,
+                               text=[f"{fr(v, 2)} %" for v in cn["taux_conversion_pct"]], textposition="outside",
+                               customdata=np.stack([cn["visiteurs"], cn["chiffre_affaires_usd"]], axis=1),
+                               hovertemplate="%{y}<br>%{x:.2f} % des visiteurs achètent<br>%{customdata[0]:,.0f} visiteurs · %{customdata[1]:,.0f} $<extra></extra>"))
+        fig.add_vline(x=moyenne, line=dict(color=C_ACCENT, dash="dash", width=2))
+        fig.add_annotation(x=moyenne, y=1.04, yref="paper", text=f"Moyenne : {fr(moyenne, 2)} %", showarrow=False, font=dict(color=C_ACCENT), xanchor="left")
+        fig.update_xaxes(title="Part des visiteurs qui achètent (%)", range=[0, cn["taux_conversion_pct"].max() * 1.25])
+        style_fig(fig, "Taux de conversion par canal d'arrivée", hauteur=360)
+        afficher_fig(fig)
+        tableau = cn.sort_values("visiteurs", ascending=False)[["canal", "visiteurs", "acheteurs", "taux_conversion_pct", "chiffre_affaires_usd"]]
+        tableau.columns = ["Canal", "Visiteurs", "Acheteurs", "Conversion (%)", "Chiffre d'affaires ($)"]
+        st.dataframe(tableau, hide_index=True, width="stretch")
+        lecture(
+            "Google (référencement naturel) apporte le plus de visiteurs, mais les visiteurs venus de la boutique Google principale convertissent "
+            "deux fois mieux. La publicité payante Google Ads convertit le moins bien : avant d'augmenter son budget, il faut revoir les mots-clés et les pages d'arrivée."
+        )
+        st.caption("Google a anonymisé une partie des sources (« <Other> », « (data deleted) ») : ces lignes sont exclues du graphique.")
+        voir_sql(3)
+
+    with onglets[3]:
+        k = d["cohortes"]
+        pv = k.pivot(index="cohorte", columns="semaines_apres", values="visiteurs")
+        pv = pv.iloc[1:]  # la première cohorte ne compte qu'un jour
+        taux = pv.div(pv[0], axis=0) * 100
+        taux = taux[[s for s in range(1, 7) if s in taux.columns]]
+        fig = go.Figure(go.Heatmap(
+            z=taux.values, x=[f"+{s} sem." for s in taux.columns], y=[pd.Timestamp(c).strftime("%d/%m") for c in taux.index],
+            colorscale=[[0, "#EEF1FB"], [0.5, "#9DAAE6"], [1, "#2340C8"]], zmin=0, zmax=7,
+            text=[[("" if pd.isna(v) else f"{fr(v)} %") for v in ligne] for ligne in taux.values], texttemplate="%{text}",
+            hovertemplate="Nouveaux visiteurs de la semaine du %{y}<br>%{x} : %{z:.1f} % reviennent<extra></extra>", colorbar=dict(title="%", thickness=12),
+        ))
+        fig.update_yaxes(title="Semaine de première visite", autorange="reversed")
+        style_fig(fig, "Part des nouveaux visiteurs qui reviennent les semaines suivantes", hauteur=460)
+        afficher_fig(fig)
+        nov = taux.loc[[c for c in taux.index if c < "2020-11-30"], 1].mean()
+        dec = taux.loc[[c for c in taux.index if "2020-12-07" <= c < "2020-12-28"], 1].mean()
+        lecture(
+            f"Peu de visiteurs reviennent : environ {fr(nov, 0)} % la semaine suivante pour les nouveaux venus de novembre, "
+            f"et seulement {fr(dec, 0)} % pour ceux de décembre, venus acheter un cadeau. Une campagne de relance ciblée sur ces acheteurs de Noël "
+            "(e-mail en janvier, offre de bienvenue) serait la piste la plus directe."
+        )
+        voir_sql(4)
+
+    with onglets[4]:
+        p = d["produits"].groupby("produit")[["vues", "ajouts_panier", "quantites_vendues", "chiffre_affaires_usd"]].sum()
+        top = p.sort_values("chiffre_affaires_usd", ascending=False).head(10).iloc[::-1]
+        fig = go.Figure(go.Bar(x=top["chiffre_affaires_usd"], y=top.index, orientation="h", marker_color=C_MAIN,
+                               text=[f"{nombre(v)} $" for v in top["chiffre_affaires_usd"]], textposition="outside",
+                               customdata=top["quantites_vendues"], hovertemplate="%{y}<br>%{x:,.0f} $ · %{customdata:,.0f} unités<extra></extra>"))
+        fig.update_xaxes(title="Chiffre d'affaires ($)", range=[0, top["chiffre_affaires_usd"].max() * 1.25])
+        style_fig(fig, "Les 10 produits qui rapportent le plus", hauteur=420)
+        afficher_fig(fig)
+        part = top["chiffre_affaires_usd"].sum() / p["chiffre_affaires_usd"].sum() * 100
+        lecture(
+            f"Les 10 premiers produits font {fr(part, 0)} % du chiffre d'affaires des produits, presque tous des vêtements chauds (polaires, sweats, doudounes) : "
+            "une saison d'hiver portée par le textile. La gourde est le seul objet du top 10, vendue en volume."
+        )
+        st.caption("Dans cet export anonymisé, les noms de catégories diffèrent entre vues et achats : j'ai rapproché les produits par leur nom.")
+        voir_sql(5)
+
+    with onglets[5]:
+        st.markdown(
+            """
+            - **Les données sont anonymisées par Google** : une partie des sources et des produits est masquée (« <Other> », « (data deleted) »), et certains chiffres sont arrondis.
+            - **Trois mois seulement**, très marqués par Noël : les taux de conversion et de retour ne valent pas pour le reste de l'année.
+            - **Le canal est celui de la première visite** : un visiteur arrivé par Google puis revenu par un e-mail reste compté sur Google.
+            - **Les cohortes commencent le 1er novembre** : un « nouveau » visiteur a pu venir avant cette date.
+            - **Corrélation n'est pas causalité** : comparer des canaux ne dit pas ce que rapporterait un euro de plus ; il faudrait un test (A/B ou géographique).
+            """
+        )
 
 
 STYLE_V2 = """
