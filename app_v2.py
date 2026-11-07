@@ -3228,17 +3228,15 @@ def projet_powerbi(numero):
     with onglets[2]:
         st.header("Les pages du rapport")
         st.write(f"Le rapport compte {len(cfg['pages'])} pages. Chaque titre de graphique énonce la conclusion à retenir.")
-        captures = sorted((PHOTO.parent).glob(f"powerbi_{numero}_*"))
         for i, (nom, but, constats) in enumerate(cfg["pages"], start=1):
+            capture = PHOTO.parent / f"powerbi_{numero}_{i}.png"
             with st.container(border=True):
                 st.subheader(f"{i}. {nom}")
                 st.write(but)
                 for constat in constats:
                     st.markdown(f"- {constat}")
-        if captures:
-            st.header("Captures du rapport")
-            for capture in captures:
-                st.image(str(capture))
+                if capture.exists():
+                    st.image(str(capture), caption=f"Page {i} du rapport Power BI : {nom}")
 
     with onglets[3]:
         st.header("Recommandations")
