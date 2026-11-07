@@ -1976,7 +1976,7 @@ ETAPES = [
 def page_projets():
     numero = st.session_state.get("projet")
     pages_projets = {1: projet_olist, 2: projet_retail, 3: projet_clients, 4: projet_favorita, 5: projet_leads,
-                     6: projet_powerbi_churn, 7: projet_powerbi_banque, 8: projet_geomarketing, 9: projet_sql_ga4}
+                     6: projet_powerbi_churn, 7: projet_powerbi_banque, 8: projet_geomarketing, 9: projet_sql_ga4, 10: projet_uplift}
     if numero in pages_projets:
         pages_projets[numero]()
         pied_projet(numero)
@@ -1984,8 +1984,8 @@ def page_projets():
 
     titre_page(
         "Projets",
-        "Neuf analyses sur des données réelles, de la question au plan d'action",
-        "Six projets en Python, un en SQL et deux dashboards Power BI. Je les ai réalisés comme des missions : une question business, "
+        "Dix analyses sur des données réelles, de la question au plan d'action",
+        "Sept projets en Python, un en SQL et deux dashboards Power BI. Je les ai réalisés comme des missions : une question business, "
         "des données à nettoyer ou à modéliser, une analyse, puis des recommandations avec leurs limites.",
     )
     etapes = "".join(f"<li>{nom}<small>{texte}</small></li>" for nom, texte in ETAPES)
@@ -4791,6 +4791,219 @@ def projet_sql_ga4():
             - **Corrélation n'est pas causalité** : comparer des canaux ne dit pas ce que rapporterait un euro de plus ; il faudrait un test (A/B ou géographique).
             """
         )
+
+
+# =========================================================
+# PROJET 10 : FAUT-IL VRAIMENT ENVOYER CET E-MAIL ? (TEST A/B ET UPLIFT)
+# =========================================================
+# Données : test e-mail randomisé de Kevin Hillstrom (MineThatData), 64 000 clients.
+# Les calculs (intervalles de confiance, modèle, stratégies) sont faits par prepare_uplift.py.
+PROJETS.append({
+    "titre": "Faut-il vraiment envoyer cet e-mail ? (test A/B et uplift)",
+    "question": "Quels clients achètent grâce à l'e-mail, et pas « de toute façon » ? Et quel e-mail envoyer à qui ?",
+    "donnees": "MineThatData, test e-mail randomisé de Kevin Hillstrom (64 000 clients)",
+    "outils": ["Python", "Test A/B", "Uplift modeling", "scikit-learn"],
+})
+
+COULEUR_EMAIL = {"homme": C_MAIN, "femme": C_ACCENT}
+NOM_EMAIL = {"homme": "E-mail mode homme", "femme": "E-mail mode femme"}
+
+
+@st.cache_data
+def donnees_uplift():
+    lire = lambda n: pd.read_csv(DATA / f"uplift_{n}.csv")
+    return {n: lire(n) for n in ["ab", "segments", "courbe", "modele", "strategies"]}
+
+
+def barres_ic(df, x, bas, haut, titre, unite, decimales):
+    """Barres horizontales avec intervalle de confiance à 95 %, une couleur par e-mail."""
+    fig = go.Figure()
+    for e in ["homme", "femme"]:
+        ligne = df[df["groupe"] == e]
+        fig.add_trace(go.Bar(
+            y=[NOM_EMAIL[e]], x=ligne[x], orientation="h", marker_color=COULEUR_EMAIL[e], name=NOM_EMAIL[e],
+            error_x=dict(type="data", symmetric=False, array=ligne[haut] - ligne[x], arrayminus=ligne[x] - ligne[bas], color="#141B2D", thickness=1.5, width=6),
+            text=[f"+{fr(v, decimales)}{unite}" for v in ligne[x]], textposition="inside", insidetextanchor="start", textfont=dict(color="#FFFFFF"),
+            hovertemplate="%{y} : +%{x:." + str(decimales) + "f}" + unite + "<extra></extra>",
+        ))
+    fig.add_vline(x=0, line=dict(color="#141B2D", width=1))
+    style_fig(fig, titre, hauteur=230)
+    fig.update_layout(showlegend=False, bargap=0.35)
+    fig.update_yaxes(autorange="reversed")
+    return fig
+
+
+@st.cache_data
+def resume_uplift():
+    d = donnees_uplift()
+    st_ = d["strategies"].set_index("strategie")["visites_en_plus"]
+    regle = st_[st_.index.str.startswith("Règle")].iloc[0]
+    test = st_[st_.index.str.startswith("Moitié")].iloc[0]
+    modele = st_[st_.index.str.startswith("Choix du modèle")].iloc[0]
+    seg = d["segments"]
+    h_seul = seg[(seg.valeur == "Homme seulement") & (seg.email == "femme")].iloc[0]
+    return {
+        "court": f"Une règle simple sur le choix de l'e-mail apporte {fr((regle / test - 1) * 100, 0)} % de visites en plus que la campagne testée, mieux qu'un modèle d'IA.",
+        "trouve": f"Les deux e-mails ont un effet réel (test A/B sur 64 000 clients). Mais l'e-mail femme ne sert presque à rien auprès des clients du seul rayon homme "
+                  f"(+{fr(h_seul.uplift_visite * 100)} point de visites), alors que l'e-mail homme fonctionne sur tout le monde. "
+                  f"Choisir l'e-mail selon les achats passés donne {nombre(regle)} visites en plus pour 64 000 clients, contre {nombre(modele)} avec un modèle d'uplift.",
+        "reco": "Envoyer l'e-mail femme aux seules clientes du rayon femme et l'e-mail homme à tous les autres, puis garder un groupe sans e-mail "
+                "à chaque campagne pour continuer à mesurer l'effet réel.",
+    }
+
+
+_resumes_v3 = calculer_resumes
+
+
+@st.cache_data
+def calculer_resumes():
+    resumes = dict(_resumes_v3())
+    resumes[10] = resume_uplift()
+    return resumes
+
+
+def projet_uplift():
+    d = donnees_uplift()
+    ab = d["ab"]
+    projet = PROJETS[9]
+    visite = ab[ab.indicateur == "visit"].set_index("groupe")
+    entete_projet(10, projet["titre"], projet["question"], projet["donnees"], projet["outils"], [
+        ("Clients dans le test", nombre(64000)),
+        ("Groupes tirés au sort", "3"),
+        ("Visites en plus, e-mail homme", f"+{fr(visite.loc['homme', 'ecart'] * 100)} pts"),
+        ("Visites en plus, e-mail femme", f"+{fr(visite.loc['femme', 'ecart'] * 100)} pts"),
+    ])
+    callout(
+        "**L'idée.** Un client qui achète après un e-mail n'a pas forcément acheté *grâce* à l'e-mail : il aurait pu acheter de toute façon. "
+        "Pour mesurer l'effet réel, il faut un groupe qui ne reçoit rien. Ici, 64 000 clients ont été tirés au sort en trois groupes : "
+        "e-mail mode homme, e-mail mode femme, aucun e-mail. On a suivi leurs visites et leurs achats pendant deux semaines."
+    )
+    onglets = st.tabs(["Le test A/B", "Pour qui ça marche", "Quel e-mail envoyer à qui", "Le modèle d'uplift", "Méthode et limites"])
+
+    with onglets[0]:
+        k = st.columns(3)
+        for col, (g, nom) in zip(k, [("aucun", "Sans e-mail"), ("homme", "E-mail homme"), ("femme", "E-mail femme")]):
+            v = visite.loc[g, "moyenne"] * 100
+            col.metric(f"Visites, {nom.lower()}", f"{fr(v)} %", None if g == "aucun" else delta_texte(visite.loc[g, "ecart"] * 100, " pt"))
+        a, b = st.columns(2)
+        with a:
+            vis = ab[ab.indicateur == "visit"].copy()
+            for c in ["ecart", "ic_bas", "ic_haut"]:
+                vis[c] = vis[c] * 100
+            afficher_fig(barres_ic(vis, "ecart", "ic_bas", "ic_haut", "Visites en plus (points de %)", " pt", 1))
+        with b:
+            dep = ab[ab.indicateur == "spend"]
+            afficher_fig(barres_ic(dep, "ecart", "ic_bas", "ic_haut", "Dépense en plus par client ($)", " $", 2))
+        dep_h = ab[(ab.indicateur == "spend") & (ab.groupe == "homme")].iloc[0]
+        lecture(
+            f"Les deux e-mails font venir plus de clients et dépenser plus. L'e-mail homme fait mieux : +{fr(visite.loc['homme', 'ecart'] * 100)} points de visites "
+            f"(l'intervalle de confiance à 95 % va de {fr(visite.loc['homme', 'ic_bas'] * 100)} à {fr(visite.loc['homme', 'ic_haut'] * 100)}) et +{fr(dep_h.ecart, 2)} $ par client. "
+            "Les traits noirs montrent l'incertitude : elle est faible sur les visites, plus large sur la dépense, car peu de clients achètent."
+        )
+
+    with onglets[1]:
+        seg = d["segments"]
+        dimension = st.selectbox("Découper les clients selon", list(dict.fromkeys(seg["dimension"])), key="uplift_dim")
+        x = seg[seg.dimension == dimension]
+        fig = go.Figure()
+        for e in ["homme", "femme"]:
+            y = x[x.email == e]
+            fig.add_trace(go.Bar(
+                x=y["valeur"], y=y["uplift_visite"] * 100, name=NOM_EMAIL[e], marker_color=COULEUR_EMAIL[e],
+                error_y=dict(type="data", symmetric=False, array=(y["uplift_visite_haut"] - y["uplift_visite"]) * 100,
+                             arrayminus=(y["uplift_visite"] - y["uplift_visite_bas"]) * 100, color="#141B2D", thickness=1.2, width=4),
+                customdata=y["clients"], hovertemplate="%{x}<br>+%{y:.1f} points de visites<br>%{customdata:,.0f} clients<extra>" + NOM_EMAIL[e] + "</extra>",
+            ))
+        fig.add_hline(y=0, line=dict(color="#141B2D", width=1))
+        fig.update_yaxes(title="Visites en plus (points de %)")
+        style_fig(fig, f"Effet de chaque e-mail selon : {dimension.lower()}", hauteur=400, legende=True)
+        fig.update_layout(barmode="group", bargap=0.25, bargroupgap=0.08)
+        fig.update_layout(legend=dict(orientation="h", x=0, y=-0.22, yanchor="top"), margin=dict(b=90))
+        afficher_fig(fig)
+        h = seg[(seg.dimension == "Rayons achetés l'an passé")].set_index(["valeur", "email"])["uplift_visite"] * 100
+        lecture(
+            f"Le résultat le plus utile : l'e-mail femme ne fait presque rien auprès des clients qui n'achètent que du rayon homme (+{fr(h['Homme seulement', 'femme'])} point), "
+            f"alors que l'e-mail homme fonctionne sur tous les profils, même les clientes du seul rayon femme (+{fr(h['Femme seulement', 'homme'])} points). "
+            f"Pour ces clientes, les deux e-mails se valent (+{fr(h['Femme seulement', 'homme'])} et +{fr(h['Femme seulement', 'femme'])} points). "
+            "Choisissez d'autres découpages : les nouveaux clients réagissent aussi bien que les fidèles, et l'effet ne dépend presque pas de la zone ou du canal."
+        )
+
+    with onglets[2]:
+        strat = d["strategies"].copy()
+        test = strat[strat.strategie.str.startswith("Moitié")]["visites_en_plus"].iloc[0]
+        strat = strat.sort_values("visites_en_plus")
+        couleurs = [C_ACCENT if s.startswith("Règle") else (C_NEUTRE if s.startswith("Moitié") else C_MAIN) for s in strat["strategie"]]
+        fig = go.Figure(go.Bar(
+            x=strat["visites_en_plus"], y=[s.replace(" : ", " :<br>").replace(", e-mail homme", ",<br>e-mail homme") for s in strat["strategie"]],
+            orientation="h", marker_color=couleurs, text=[nombre(v) for v in strat["visites_en_plus"]], textposition="outside",
+            hovertemplate="%{x:,.0f} visites en plus pour 64 000 clients<extra></extra>",
+        ))
+        fig.update_xaxes(title="Visites en plus pour 64 000 clients (mesurées sur l'échantillon test)", range=[0, strat["visites_en_plus"].max() * 1.18])
+        style_fig(fig, "Cinq façons d'envoyer la campagne", hauteur=420)
+        afficher_fig(fig)
+        regle = strat[strat.strategie.str.startswith("Règle")].iloc[0]
+        modele = strat[strat.strategie.str.startswith("Choix du modèle")].iloc[0]
+        lecture(
+            f"La règle simple (en orange) gagne : {nombre(regle.visites_en_plus)} visites en plus, soit {fr((regle.visites_en_plus / test - 1) * 100, 0)} % de plus "
+            f"que la campagne testée (en gris, moitié de chaque e-mail), et mieux que le modèle d'IA ({nombre(modele.visites_en_plus)}). "
+            "Elle est aussi la plus facile à appliquer et à expliquer à une équipe CRM."
+        )
+        st.caption("Les montants de dépense suivent le même ordre, mais avec une forte incertitude : je base la décision sur les visites.")
+
+    with onglets[3]:
+        c = d["courbe"]
+        st.write(
+            "J'ai entraîné un modèle (un « T-learner » : un modèle de gradient boosting par groupe) sur la moitié des clients. Pour chaque client de l'autre moitié, "
+            "il prédit l'effet de chaque e-mail et recommande le meilleur. On cible ensuite en priorité les clients au plus fort effet prédit."
+        )
+        part = st.select_slider("Part des clients ciblés", options=list(c["part_cible"]), value=20, format_func=lambda v: f"{v} %", key="uplift_part")
+        ligne = c[c.part_cible == part].iloc[0]
+        k = st.columns(3)
+        k[0].metric("Clients ciblés (sur 64 000)", nombre(ligne.clients_cibles_sur_64000))
+        k[1].metric("Visites en plus avec le modèle", nombre(ligne.visites_en_plus_pour_64000))
+        k[2].metric("Ciblage au hasard", nombre(ligne.visites_en_plus_hasard),
+                    delta_texte((ligne.visites_en_plus_pour_64000 / ligne.visites_en_plus_hasard - 1) * 100, " % pour le modèle"))
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=c["part_cible"], y=c["visites_en_plus_hasard"], name="Ciblage au hasard", mode="lines",
+                                 line=dict(color=C_NEUTRE, width=2, dash="dash"), hovertemplate="%{x} % ciblés : %{y:,.0f} visites<extra>Hasard</extra>"))
+        fig.add_trace(go.Scatter(x=c["part_cible"], y=c["visites_en_plus_pour_64000"], name="Ciblage par le modèle", mode="lines+markers",
+                                 line=dict(color=C_MAIN, width=2.5), marker=dict(size=6),
+                                 hovertemplate="%{x} % ciblés : %{y:,.0f} visites<extra>Modèle</extra>"))
+        fig.add_vline(x=part, line=dict(color=C_ACCENT, width=1.5, dash="dot"))
+        fig.update_xaxes(title="Part des clients ciblés (%)", ticksuffix=" %")
+        fig.update_yaxes(title="Visites en plus (pour 64 000 clients)")
+        style_fig(fig, "Visites gagnées selon la part de clients ciblés", hauteur=380, legende=True)
+        fig.update_layout(legend=dict(orientation="h", x=0, y=-0.22, yanchor="top"), margin=dict(b=90))
+        afficher_fig(fig)
+        petit = c[c.part_cible <= 30]
+        gains = petit["visites_en_plus_pour_64000"] / petit["visites_en_plus_hasard"] - 1
+        lecture(
+            f"Le modèle fait mieux que le hasard quand on cible peu de clients (de +{fr(gains.min() * 100, 0)} % à +{fr(gains.max() * 100, 0)} % de visites gagnées "
+            "jusqu'à 30 % de clients ciblés), puis l'écart disparaît. C'est un résultat honnête : avec seulement 7 informations par client, le modèle ne trouve pas grand-chose de plus "
+            "que la règle simple. Sa vraie utilité serait sur une campagne coûteuse (courrier, appel), où l'on ne peut contacter qu'une petite partie des clients."
+        )
+
+    with onglets[4]:
+        st.header("Méthode")
+        st.markdown(
+            """
+            1. **Test A/B** : écart de taux de visite et de dépense entre chaque groupe e-mail et le groupe sans e-mail, avec un intervalle de confiance à 95 %.
+            2. **Effet par segment** : le même calcul à l'intérieur de chaque segment de clients (rayons achetés, ancienneté, canal, zone, montant dépensé).
+            3. **Modèle d'uplift** : la moitié des clients sert à entraîner trois modèles de gradient boosting (un par groupe) ; l'effet prédit d'un e-mail = probabilité de visite avec cet e-mail − probabilité sans e-mail.
+            4. **Évaluation honnête** : toutes les stratégies sont mesurées sur l'autre moitié, que le modèle n'a jamais vue, en comparant les clients qui ont reçu l'e-mail choisi pour eux à ceux qui n'ont rien reçu. La règle simple se vérifie aussi sur la moitié d'entraînement.
+            """
+        )
+        st.header("Limites")
+        st.markdown(
+            """
+            - **Des données de 2008**, d'une enseigne américaine : les ordres de grandeur ont pu changer, la méthode reste la même.
+            - **Deux semaines de suivi** : on ne voit pas l'effet à long terme (désabonnements, fatigue des clients qui reçoivent trop d'e-mails).
+            - **La dépense est très incertaine** : moins de 1 % des clients achètent, d'où des intervalles de confiance larges ; les décisions reposent sur les visites.
+            - **Peu de variables par client** (7), ce qui limite ce qu'un modèle peut apprendre.
+            - **Un e-mail coûte presque rien** : le ciblage compte surtout pour éviter de lasser les clients, ou pour des canaux chers (courrier, téléphone, publicité).
+            """
+        )
+        st.caption("Source : Kevin Hillstrom, « The MineThatData E-Mail Analytics And Data Mining Challenge » (2008), données publiques.")
 
 
 STYLE_V2 = """
