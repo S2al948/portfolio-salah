@@ -30,7 +30,7 @@ Je cherche une alternance de 12 à 24 mois en data analyse, BI ou marketing data
 | 6 | Churn télécom | Power BI, DAX, modèle en étoile | 28 % des clients concentrent 55 % des résiliations |
 | 7 | Marketing bancaire (projet phare) | Power BI, DAX, score de propension | 30 % des appels, les mieux scorés, captent 66 % des souscriptions |
 | 8 | Géomarketing : où ouvrir un commerce à Paris ? | Python, géodonnées, open data | Score d'attractivité de 992 quartiers à partir de 60 439 commerces, du recensement et des validations en gare |
-| 9 | Parcours d'achat e-commerce en SQL (Google Analytics 4) | SQL, BigQuery, GA4 | 77 % des visiteurs ne regardent aucun produit ; une fois le panier rempli, 35 % achètent |
+| 9 | Parcours d'achat e-commerce en SQL (Google Analytics 4) | SQL, BigQuery, GA4 | 77 % des visiteurs ne regardent aucun produit ; relancer 5 % des paniers abandonnés rapporterait environ 34 000 $ sur 3 mois |
 
 ## Comment fonctionne l'assistant
 

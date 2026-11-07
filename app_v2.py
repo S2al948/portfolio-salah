@@ -4585,7 +4585,9 @@ def voir_sql(numero):
 
 def ga4_chiffres(d):
     j = d["jour"]
-    return {"visiteurs": j["visiteurs"].sum(), "sessions": j["sessions"].sum(), "achats": j["achats"].sum(), "ca": j["chiffre_affaires_usd"].sum()}
+    # visiteurs uniques : requête 2 (la somme des visiteurs de chaque jour compterait plusieurs fois un visiteur revenu)
+    return {"visiteurs": d["entonnoir"]["visiteurs"].sum(), "sessions": j["sessions"].sum(), "achats": j["achats"].sum(),
+            "ca": j["chiffre_affaires_usd"].sum(), "acheteurs": d["entonnoir"]["achat"].sum()}
 
 
 @st.cache_data
@@ -4596,10 +4598,10 @@ def resume_ga4():
     return {
         "court": f"Seuls {fr(vue, 0)} % des visiteurs regardent un produit et {fr(achat, 2)} % achètent : tout se joue avant le panier.",
         "trouve": f"Sur 100 visiteurs, {fr(vue, 0)} regardent un produit, {fr(panier)} ajoutent au panier et {fr(achat, 2)} achètent. "
-                  f"Une fois le panier rempli, {fr(achat / panier * 100, 0)} % vont jusqu'à l'achat. Le mobile convertit aussi bien que l'ordinateur, "
+                  f"On compte {fr(achat / panier * 100, 0)} acheteurs pour 100 visiteurs ayant rempli un panier. Le mobile convertit aussi bien que l'ordinateur, "
                   "Google Ads moins bien que le référencement naturel, et les ventes s'effondrent dès la semaine de Noël.",
-        "reco": "Mettre les produits en avant dès l'accueil, relancer les paniers abandonnés par e-mail, revoir les pages d'arrivée de Google Ads, "
-                "et annoncer la date limite de livraison avant Noël pour avancer les achats.",
+        "reco": "Relancer les paniers abandonnés par e-mail (environ +34 000 $ sur 3 mois en récupérant 5 % des paniers), mettre les produits en avant "
+                "dès l'accueil, revoir Google Ads avant d'augmenter son budget et annoncer la date limite de livraison avant Noël.",
     }
 
 
@@ -4618,7 +4620,7 @@ def projet_sql_ga4():
     c = ga4_chiffres(d)
     projet = PROJETS[8]
     entete_projet(9, projet["titre"], projet["question"], projet["donnees"], projet["outils"], [
-        ("Visiteurs", nombre(c["visiteurs"])),
+        ("Visiteurs uniques", nombre(c["visiteurs"])),
         ("Sessions", nombre(c["sessions"])),
         ("Achats", nombre(c["achats"])),
         ("Chiffre d'affaires", f"{nombre(c['ca'])} $"),
@@ -4627,7 +4629,7 @@ def projet_sql_ga4():
         "**Comment j'ai travaillé.** J'ai écrit 5 requêtes SQL et je les ai exécutées dans **BigQuery** sur l'export brut de Google Analytics 4 : "
         "une ligne par événement (page vue, ajout au panier, achat…). Le site affiche leurs résultats ; chaque graphique est suivi de sa requête."
     )
-    onglets = st.tabs(["Trafic et ventes", "Entonnoir d'achat", "Canaux d'acquisition", "Fidélité", "Produits", "Limites"])
+    onglets = st.tabs(["Trafic et ventes", "Entonnoir d'achat", "Canaux d'acquisition", "Fidélité", "Produits", "Recommandations", "Limites"])
 
     with onglets[0]:
         j = d["jour"].copy()
@@ -4670,7 +4672,7 @@ def projet_sql_ga4():
         lecture(
             f"La plus grosse perte a lieu avant le panier : {fr(100 - pct['vue_produit'], 0)} % des visiteurs ne regardent aucun produit, "
             f"et {fr(100 - tot['ajout_panier'] / tot['vue_produit'] * 100, 0)} % de ceux qui en regardent un ne l'ajoutent pas. "
-            f"Ensuite, le tunnel de paiement fonctionne bien : {fr(tot['achat'] / tot['ajout_panier'] * 100, 0)} % des visiteurs qui remplissent un panier achètent."
+            f"Ensuite, le tunnel de paiement fonctionne bien : on compte {fr(tot['achat'] / tot['ajout_panier'] * 100, 0)} acheteurs pour 100 visiteurs ayant rempli un panier."
         )
         st.write("**Par appareil**")
         par_app = pd.DataFrame({
@@ -4742,16 +4744,48 @@ def projet_sql_ga4():
         style_fig(fig, "Les 10 produits qui rapportent le plus", hauteur=420)
         afficher_fig(fig)
         part = top["chiffre_affaires_usd"].sum() / p["chiffre_affaires_usd"].sum() * 100
+        rattache = p["chiffre_affaires_usd"].sum() / ga4_chiffres(d)["ca"] * 100
         lecture(
-            f"Les 10 premiers produits font {fr(part, 0)} % du chiffre d'affaires des produits, presque tous des vêtements chauds (polaires, sweats, doudounes) : "
+            f"Les 10 premiers produits font {fr(part, 0)} % du chiffre d'affaires rattaché à un produit, presque tous des vêtements chauds (polaires, sweats, doudounes) : "
             "une saison d'hiver portée par le textile. La gourde est le seul objet du top 10, vendue en volume."
         )
-        st.caption("Dans cet export anonymisé, les noms de catégories diffèrent entre vues et achats : j'ai rapproché les produits par leur nom.")
+        st.caption(f"Dans cet export anonymisé, seuls {fr(rattache, 0)} % du chiffre d'affaires sont rattachés à un produit nommé, et les catégories diffèrent "
+                   "entre vues et achats : j'ai rapproché les produits par leur nom.")
         voir_sql(5)
 
     with onglets[5]:
+        e = d["entonnoir"].sum(numeric_only=True)
+        ca_acheteur = c["ca"] / c["acheteurs"]
+        abandon = e["ajout_panier"] - e["achat"]
+        gain_relance = abandon * 0.05 * ca_acheteur
+        gain_vitrine = e["visiteurs"] * 0.01 * (e["achat"] / e["vue_produit"]) * ca_acheteur
+        st.write(
+            f"Chaque acheteur rapporte en moyenne **{fr(ca_acheteur, 0)} $** sur la période. Les gains ci-dessous sont des ordres de grandeur, "
+            "calculés sur les trois mois étudiés avec des hypothèses volontairement prudentes, à valider par un test."
+        )
+        recos = pd.DataFrame([
+            ("1", "Relancer les paniers abandonnés (e-mail automatique sous 24 h)",
+             f"{nombre(abandon)} visiteurs ont rempli un panier sans acheter", "Récupérer 5 % de ces paniers", f"+{nombre(gain_relance)} $"),
+            ("2", "Mettre les produits en avant dès l'accueil (meilleures ventes, nouveautés)",
+             f"{fr(100 - e['vue_produit'] / e['visiteurs'] * 100, 0)} % des visiteurs ne regardent aucun produit",
+             "1 point de visiteurs en plus qui regarde un produit", f"+{nombre(gain_vitrine)} $"),
+            ("3", "Annoncer la date limite de livraison avant Noël et avancer les promotions",
+             "Ventes en baisse de 75 % la semaine de Noël", "Avancer une partie des achats de fin décembre", "À mesurer"),
+            ("4", "Revoir les mots-clés et pages d'arrivée Google Ads avant toute hausse de budget",
+             "Google Ads : 1,08 % de conversion, le plus faible", "Rejoindre le référencement naturel (1,33 %)", "Faible, mais coût d'acquisition réduit"),
+            ("5", "Relancer en janvier les acheteurs de Noël (offre de bienvenue)",
+             "3 % des nouveaux visiteurs de décembre reviennent", "Faire revenir une partie des clients de Noël", "À mesurer"),
+        ], columns=["#", "Action", "Constat", "Hypothèse", "Gain estimé (3 mois)"])
+        st.dataframe(recos, hide_index=True, width="stretch")
+        lecture(
+            f"Les deux premières actions pèsent le plus : relancer 5 % des paniers abandonnés rapporterait environ {nombre(gain_relance)} $, "
+            f"soit {fr(gain_relance / c['ca'] * 100, 0)} % du chiffre d'affaires de la période. Les deux sont simples à tester avec un groupe témoin (test A/B)."
+        )
+
+    with onglets[6]:
         st.markdown(
             """
+            - **L'entonnoir compte chaque étape séparément** : il ne suit pas chaque visiteur pas à pas. Un ratio comme « acheteurs pour 100 paniers » est un ordre de grandeur, pas un taux exact.
             - **Les données sont anonymisées par Google** : une partie des sources et des produits est masquée (« <Other> », « (data deleted) »), et certains chiffres sont arrondis.
             - **Trois mois seulement**, très marqués par Noël : les taux de conversion et de retour ne valent pas pour le reste de l'année.
             - **Le canal est celui de la première visite** : un visiteur arrivé par Google puis revenu par un e-mail reste compté sur Google.
