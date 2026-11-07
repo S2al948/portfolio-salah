@@ -1976,7 +1976,7 @@ ETAPES = [
 def page_projets():
     numero = st.session_state.get("projet")
     pages_projets = {1: projet_olist, 2: projet_retail, 3: projet_clients, 4: projet_favorita, 5: projet_leads,
-                     6: projet_powerbi_churn, 7: projet_powerbi_banque}
+                     6: projet_powerbi_churn, 7: projet_powerbi_banque, 8: projet_geomarketing}
     if numero in pages_projets:
         pages_projets[numero]()
         pied_projet(numero)
@@ -1984,8 +1984,8 @@ def page_projets():
 
     titre_page(
         "Projets",
-        "Sept analyses sur des données réelles, de la question au plan d'action",
-        "Cinq projets en Python et deux dashboards Power BI. Je les ai réalisés comme des missions : une question business, "
+        "Huit analyses sur des données réelles, de la question au plan d'action",
+        "Six projets en Python et deux dashboards Power BI. Je les ai réalisés comme des missions : une question business, "
         "des données à nettoyer ou à modéliser, une analyse, puis des recommandations avec leurs limites.",
     )
     etapes = "".join(f"<li>{nom}<small>{texte}</small></li>" for nom, texte in ETAPES)
@@ -3509,7 +3509,7 @@ FOURNISSEURS = {
     "anthropic": {"nom": "Claude (Anthropic)", "modele": "claude-haiku-5-5", "base_url": None, "sdk": "anthropic"},
     "openai": {"nom": "OpenAI", "modele": "gpt-4o-mini", "base_url": None, "sdk": "openai"},
     "zai": {"nom": "Z.ai (GLM)", "modele": "glm-4.5-flash", "base_url": "https://api.z.ai/api/paas/v4", "sdk": "openai"},
-    "groq": {"nom": "Groq", "modele": "llama-3.3-70b-versatile", "base_url": "https://api.groq.com/openai/v1", "sdk": "openai"},
+    "groq": {"nom": "Groq", "modele": "openai/gpt-oss-120b", "base_url": "https://api.groq.com/openai/v1", "sdk": "openai"},
     "gemini": {"nom": "Google Gemini", "modele": "gemini-2.5-flash", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/", "sdk": "openai"},
 }
 
@@ -4120,9 +4120,9 @@ def page_accueil_v2():
 
     # --- Trois preuves
     afficher_html(
-        """
+        f"""
         <div class="sf-preuves">
-          <div><b>7</b><span>projets sur données réelles, dont 2 rapports Power BI</span></div>
+          <div><b>{len(PROJETS)}</b><span>projets sur données réelles, dont 2 rapports Power BI</span></div>
           <div><b>−40 %</b><span>de temps de traitement des données pendant mon stage chez Comexposium</span></div>
           <div><b>66 %</b><span>des souscriptions obtenues en appelant 30 % des clients, grâce à un score</span></div>
         </div>
@@ -4286,6 +4286,256 @@ def base_connaissances():
                  f"Le plus simple pour le contacter est LinkedIn : {LINKEDIN}." + (f" Email : {EMAIL}." if EMAIL else ""),
     })
     return base
+
+
+# =========================================================
+# PROJET 8 : GÉOMARKETING, OÙ OUVRIR UN COMMERCE À PARIS ?
+# =========================================================
+# Données préparées par prepare_geomarketing.py (BDCOM 2023 Apur, recensement et Filosofi 2021 Insee,
+# validations du 4e trimestre 2025 et gares IDFM). Le site ne fait ici que pondérer et afficher.
+import json
+PROJETS.append({
+    "titre": "Géomarketing : où ouvrir un commerce à Paris ?",
+    "question": "Pour une boulangerie, un café ou une salle de sport : quels quartiers de Paris ont beaucoup de clients potentiels et peu de concurrents ?",
+    "donnees": "Apur BDCOM 2023 (60 439 commerces), Insee 2021 (992 IRIS), IDFM T4 2025 (validations en gare)",
+    "outils": ["Python", "pandas", "Géodonnées", "Score d'attractivité"],
+})
+
+TYPES_COMMERCE = {
+    "boulangerie": "Boulangerie-pâtisserie",
+    "cafe": "Café, bar ou salon de thé",
+    "sport": "Salle de sport",
+    "pharmacie": "Pharmacie",
+    "librairie": "Librairie",
+    "fleuriste": "Fleuriste",
+    "fromagerie": "Fromagerie",
+    "laverie": "Laverie automatique",
+}
+CRITERES_GEO = {"habitants": "Habitants par concurrent", "flux": "Voyageurs par concurrent", "revenu": "Revenu médian du quartier"}
+POIDS_DEFAUT = {"habitants": 40, "flux": 30, "revenu": 30}
+ECART_MIN = 600  # mètres entre deux emplacements recommandés
+ECHELLE_SCORE = [[0, "#EEF1FB"], [0.45, "#9DAAE6"], [0.8, "#2340C8"], [1, "#14256F"]]
+
+
+@st.cache_data
+def donnees_geo():
+    iris = pd.read_csv(DATA / "geo_iris.csv", dtype={"iris": str})
+    iris["nom"] = iris["nom"].str.replace("EcoLe", "École", regex=False)
+    gares = pd.read_csv(DATA / "geo_gares.csv")
+    contours = json.loads((DATA / "geo_iris.geojson").read_text(encoding="utf-8"))
+    return iris, gares, contours
+
+
+def arr(n):
+    """Numéro d'arrondissement en toutes lettres : 1er, 2e, 3e…"""
+    return "1er" if int(n) == 1 else f"{int(n)}e"
+
+
+def distance_m(lat1, lon1, lat2, lon2):
+    """Distance approximative en mètres (suffisante à l'échelle de Paris)."""
+    dy = (lat2 - lat1) * 111_320
+    dx = (lon2 - lon1) * 111_320 * np.cos(np.radians(48.86))
+    return np.sqrt(dx ** 2 + dy ** 2)
+
+
+def scorer(iris, type_commerce, poids):
+    """Score de 0 à 100 : moyenne pondérée des rangs (percentiles) de trois critères."""
+    x = iris[iris["type_iris"] != "D"].copy()  # on écarte les bois, parcs et grands équipements
+    concurrents = x[f"n_{type_commerce}"]
+    x["concurrents"] = concurrents
+    x["hab_par_conc"] = x["habitants_400m"] / (concurrents + 1)
+    x["flux_par_conc"] = x["flux_jour"] / (concurrents + 1)
+    rang = lambda s: s.rank(pct=True) * 100
+    x["p_habitants"] = rang(x["hab_par_conc"])
+    x["p_flux"] = rang(x["flux_par_conc"])
+    x["p_revenu"] = rang(x["revenu_median"]).fillna(50)  # revenu masqué par l'Insee : valeur neutre
+    total = sum(poids.values()) or 1
+    x["score"] = (poids["habitants"] * x["p_habitants"] + poids["flux"] * x["p_flux"] + poids["revenu"] * x["p_revenu"]) / total
+    return x.sort_values("score", ascending=False)
+
+
+def top_emplacements(classes, n=10):
+    """Les n meilleurs IRIS, en gardant au moins ECART_MIN mètres entre deux emplacements retenus."""
+    retenus = []
+    for _, ligne in classes.iterrows():
+        if all(distance_m(ligne.lat, ligne.lon, r.lat, r.lon) >= ECART_MIN for r in retenus):
+            retenus.append(ligne)
+        if len(retenus) == n:
+            break
+    return pd.DataFrame(retenus)
+
+
+@st.cache_data
+def resume_geo():
+    iris, _, _ = donnees_geo()
+    top = top_emplacements(scorer(iris, "cafe", POIDS_DEFAUT))
+    compte = top["arrondissement"].value_counts()
+    premier = top.iloc[0]
+    sans = int((top["concurrents"] == 0).sum())
+    return {
+        "court": f"Pour un café, {sans} des 10 meilleurs emplacements n'ont aucun concurrent à moins de 400 m.",
+        "trouve": f"Les meilleurs emplacements pour un café sont des quartiers résidentiels peu équipés, surtout dans le {arr(compte.index[0])} "
+                  f"({compte.iloc[0]} sur 10). En tête : {premier['nom']} ({arr(premier['arrondissement'])}), avec {nombre(premier['habitants_400m'])} habitants "
+                  f"et {nombre(premier['flux_jour'])} voyageurs par jour à moins de 400 m, pour {int(premier['concurrents'])} concurrent(s).",
+        "reco": "Visiter en priorité les 3 premiers emplacements, vérifier le loyer et les locaux vacants, puis tester l'offre "
+                "(boutique éphémère ou présence au marché) avant de signer un bail.",
+    }
+
+
+_resumes_v1 = calculer_resumes
+
+
+@st.cache_data
+def calculer_resumes():
+    resumes = dict(_resumes_v1())
+    resumes[8] = resume_geo()
+    return resumes
+
+
+def carte_geo(classes, top, contours):
+    """Carte des quartiers sur fond de plan (tuiles Carto, chargées par le navigateur du visiteur)."""
+    fig = go.Figure()
+    fig.add_trace(go.Choroplethmap(
+        geojson=contours, locations=classes["iris"], featureidkey="properties.iris", z=classes["score"],
+        zmin=0, zmax=100, colorscale=ECHELLE_SCORE, marker_line_width=0.4, marker_line_color="#FFFFFF", marker_opacity=0.8,
+        colorbar=dict(title=dict(text="Score", side="top"), thickness=12, len=0.55, x=0.98),
+        customdata=np.stack([classes["nom"], classes["arrondissement"].map(arr), classes["habitants_400m"], classes["flux_jour"], classes["concurrents"]], axis=1),
+        hovertemplate="<b>%{customdata[0]}</b> (%{customdata[1]})<br>Score %{z:.0f} / 100<br>"
+                      "%{customdata[2]:,.0f} habitants à 400 m<br>%{customdata[3]:,.0f} voyageurs par jour<br>%{customdata[4]} concurrent(s)<extra></extra>",
+    ))
+    fig.add_trace(go.Scattermap(
+        lat=top["lat"], lon=top["lon"], mode="markers+text", text=[str(i) for i in range(1, len(top) + 1)],
+        textfont=dict(color="#FFFFFF", size=12), marker=dict(size=22, color=C_ACCENT),
+        hovertext=[f"{i}. {n} ({arr(a)})" for i, (n, a) in enumerate(zip(top["nom"], top["arrondissement"]), start=1)], hoverinfo="text",
+    ))
+    fig.update_layout(
+        map=dict(style="carto-positron", center=dict(lat=48.857, lon=2.343), zoom=10.9),
+        height=560, margin=dict(l=0, r=0, t=0, b=0), showlegend=False, paper_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
+
+
+def projet_geomarketing():
+    iris, gares, contours = donnees_geo()
+    projet = PROJETS[7]
+    entete_projet(8, projet["titre"], projet["question"], projet["donnees"], projet["outils"], [
+        ("Commerces géolocalisés", nombre(60439)),
+        ("Quartiers IRIS analysés", nombre(len(iris))),
+        ("Gares avec leur fréquentation", nombre(len(gares))),
+        ("Sources open data croisées", "5"),
+    ])
+    onglets = st.tabs(["Simulateur d'implantation", "Concurrence par arrondissement", "Méthode et données", "Limites"])
+
+    with onglets[0]:
+        gauche, droite = st.columns([1, 2])
+        with gauche:
+            type_commerce = st.selectbox("Type de commerce", list(TYPES_COMMERCE), format_func=TYPES_COMMERCE.get, index=1, key="geo_type")
+        with droite:
+            st.caption("Importance de chaque critère (les poids sont relatifs)")
+            c1, c2, c3 = st.columns(3)
+            poids = {
+                "habitants": c1.slider("Habitants", 0, 100, POIDS_DEFAUT["habitants"], 10, key="geo_w_hab"),
+                "flux": c2.slider("Voyageurs", 0, 100, POIDS_DEFAUT["flux"], 10, key="geo_w_flux"),
+                "revenu": c3.slider("Revenu", 0, 100, POIDS_DEFAUT["revenu"], 10, key="geo_w_rev"),
+            }
+        classes = scorer(iris, type_commerce, poids)
+        top = top_emplacements(classes)
+        nom_type = TYPES_COMMERCE[type_commerce].lower()
+        premier = top.iloc[0]
+
+        k = st.columns(3)
+        k[0].metric("Meilleur emplacement", f"{premier['nom']} ({arr(premier['arrondissement'])})")
+        k[1].metric("Concurrents à moins de 400 m", int(premier["concurrents"]))
+        k[2].metric("Clients potentiels à 400 m", f"{nombre(premier['habitants_400m'])} hab.")
+
+        afficher_fig(carte_geo(classes, top, contours))
+        lecture(
+            f"Plus un quartier est foncé, plus il est intéressant pour ouvrir un(e) {nom_type}. Les numéros orange sont les 10 meilleurs emplacements, "
+            f"espacés d'au moins {ECART_MIN} m. Le n° 1, {premier['nom']} ({arr(premier['arrondissement'])}), réunit {nombre(premier['habitants_400m'])} habitants "
+            f"et {nombre(premier['flux_jour'])} voyageurs par jour à moins de 400 m, pour {int(premier['concurrents'])} concurrent(s)."
+        )
+
+        tableau = pd.DataFrame({
+            "Rang": range(1, len(top) + 1),
+            "Quartier (IRIS)": top["nom"].values,
+            "Arrondissement": [arr(a) for a in top["arrondissement"]],
+            "Habitants à 400 m": top["habitants_400m"].round().astype(int).values,
+            "Voyageurs par jour à 400 m": top["flux_jour"].round().astype(int).values,
+            "Concurrents à 400 m": top["concurrents"].astype(int).values,
+            "Revenu médian (€/an)": top["revenu_median"].values,
+            "Score / 100": top["score"].round(0).astype(int).values,
+        })
+        st.dataframe(tableau, hide_index=True, width="stretch")
+        st.download_button("Télécharger le classement complet (CSV)", classes[["iris", "nom", "arrondissement", "habitants_400m", "flux_jour", "concurrents", "revenu_median", "score"]]
+                           .round(1).to_csv(index=False).encode("utf-8"), file_name=f"geomarketing_{type_commerce}.csv", mime="text/csv", key="geo_csv")
+
+    with onglets[1]:
+        par_arr = iris.groupby("arrondissement").agg(habitants=("habitants", "sum"))
+        st.write("Combien d'habitants pour un commerce de ce type, dans chaque arrondissement ? Plus la barre est longue, plus la place est libre.")
+        type_b = st.selectbox("Type de commerce ", list(TYPES_COMMERCE), format_func=TYPES_COMMERCE.get, index=0, key="geo_type_arr")
+        comptes = geo_comptes_arrondissement(type_b)
+        par_arr["commerces"] = comptes.reindex(par_arr.index).fillna(0)
+        par_arr["hab_par_commerce"] = par_arr["habitants"] / par_arr["commerces"].replace(0, np.nan)
+        par_arr = par_arr.sort_values("hab_par_commerce")
+        moyenne = par_arr["habitants"].sum() / par_arr["commerces"].sum()
+        fig = go.Figure(go.Bar(
+            x=par_arr["hab_par_commerce"], y=[arr(a) for a in par_arr.index], orientation="h", marker_color=C_MAIN,
+            text=[nombre(v) for v in par_arr["hab_par_commerce"]], textposition="outside",
+            customdata=par_arr["commerces"], hovertemplate="%{y} : %{x:,.0f} habitants par commerce (%{customdata:.0f} commerces)<extra></extra>",
+        ))
+        fig.add_vline(x=moyenne, line=dict(color=C_ACCENT, dash="dash", width=2))
+        fig.add_annotation(x=moyenne, y=1.02, yref="paper", text=f"Paris : {nombre(moyenne)}", showarrow=False, font=dict(color=C_ACCENT), xanchor="left")
+        fig.update_xaxes(title="Habitants par commerce")
+        style_fig(fig, f"{TYPES_COMMERCE[type_b]} : habitants par commerce", hauteur=620)
+        afficher_fig(fig)
+        libre, sature = par_arr.index[-1], par_arr.index[0]
+        lecture(
+            f"Dans le {arr(libre)}, on compte {nombre(par_arr.loc[libre, 'hab_par_commerce'])} habitants par {TYPES_COMMERCE[type_b].lower()}, "
+            f"contre {nombre(par_arr.loc[sature, 'hab_par_commerce'])} dans le {arr(sature)}. Un chiffre élevé signale une offre faible "
+            "par rapport aux résidents, mais les arrondissements du centre vivent aussi des salariés et des touristes, qui ne sont pas comptés ici."
+        )
+
+    with onglets[2]:
+        st.header("Question")
+        st.write("Une enseigne veut ouvrir un point de vente à Paris. Où trouve-t-elle le plus de clients potentiels pour le moins de concurrents ?")
+        st.header("Données : cinq sources ouvertes croisées")
+        st.dataframe(pd.DataFrame([
+            ("Commerces", "Apur, BDCOM 2023", "60 439 commerces actifs avec leur adresse et leur activité (224 codes)"),
+            ("Quartiers", "Apur, contours IRIS", "992 IRIS dans Paris, des quartiers d'environ 2 000 habitants"),
+            ("Habitants", "Insee, recensement 2021", "Population de chaque IRIS"),
+            ("Revenus", "Insee, Filosofi 2021", "Revenu disponible médian (masqué par l'Insee dans 128 IRIS peu peuplés)"),
+            ("Voyageurs", "IDFM, validations T4 2025 et gares", "Validations moyennes par jour ouvré dans 314 gares et stations"),
+        ], columns=["Thème", "Source", "Ce que j'en ai tiré"]), hide_index=True, width="stretch")
+        st.header("Méthode")
+        st.markdown(
+            f"""
+            1. **Tout ramener au même endroit.** Pour chaque IRIS, je prends son centre et je compte ce qui se trouve à moins de 400 m, soit environ 5 minutes à pied : habitants, voyageurs entrant dans les gares, commerces du même type.
+            2. **Mesurer la place disponible.** Habitants par concurrent et voyageurs par concurrent (j'ajoute 1 au nombre de concurrents pour ne pas diviser par zéro).
+            3. **Mettre les critères sur la même échelle.** Chaque critère est transformé en rang de 0 à 100 : un quartier à 90 fait mieux que 90 % des autres.
+            4. **Pondérer.** Le score est la moyenne pondérée des trois rangs. Les curseurs du simulateur changent les poids.
+            5. **Recommander des lieux différents.** Le top 10 garde au moins {ECART_MIN} m entre deux emplacements.
+            """
+        )
+        st.write("Les calculs géographiques (projection en Lambert 93, distances, contours) sont faits une fois dans un script Python, `prepare_geomarketing.py`. Le site ne fait que pondérer et afficher.")
+
+    with onglets[3]:
+        st.markdown(
+            """
+            - **Les loyers ne sont pas pris en compte.** Un quartier sans concurrents peut aussi avoir des loyers élevés ou aucun local libre : la BDCOM recense les locaux vacants, ce serait la prochaine étape.
+            - **Les voyageurs ne sont pas tous des passants.** Les validations comptent les entrées en gare, pas les sorties ni les piétons, ni les bus.
+            - **Les salariés et les touristes manquent.** La demande est mesurée par les résidents : le score sous-estime le centre et les quartiers de bureaux.
+            - **Peu de concurrents n'est pas toujours un bon signe.** Parfois il n'y a pas de demande, et certains commerces gagnent à être regroupés (effet de grappe).
+            - **Le score est relatif.** Il classe les quartiers entre eux, il ne prédit pas un chiffre d'affaires. Il sert à choisir où aller visiter, pas à signer un bail.
+            - **Les données ont des dates différentes** (2021 pour les habitants et revenus, 2023 pour les commerces, 2025 pour les gares).
+            """
+        )
+
+
+@st.cache_data
+def geo_comptes_arrondissement(type_commerce):
+    """Nombre de commerces de ce type par arrondissement (préparé à partir de la BDCOM)."""
+    comptes = pd.read_csv(DATA / "geo_arrondissements.csv").set_index("arrondissement")
+    return comptes[type_commerce]
 
 
 STYLE_V2 = """
